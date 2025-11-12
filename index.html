@@ -33,20 +33,20 @@
   <div class="footnote">Rates are reported as cancers per 100,000 population.</div>
 
   <script>
-    const DATA_URL = 'data.csv'; // place your CSV next to this file
-    const PLOT_HEIGHT_PER_ROW = 320; // auto-scales by number of facet rows
-    const FACET_COLS = 2; // two-column facet wrap
+    const DATA_URL = 'data.csv';
+    const PLOT_HEIGHT_PER_ROW = 320;
+    const FACET_COLS = 2;
 
-    // Helper: sort Year labels numerically but keep as strings
+    // Sort year labels numerically (kept as strings)
     function sortYears(years) {
-      return [...new Set(years)]
-        .map(String)
-        .sort((a,b) => (parseInt(a,10) || 0) - (parseInt(b,10) || 0));
+      return [...new Set(years)].map(String)
+        .sort((a,b) => (parseInt(a,10)||0) - (parseInt(b,10)||0));
     }
 
-    // Build color palette mapping for stable colors across facets
+    // Stable color mapping for Group
     function makeColorMap(values) {
-      const palette = Plotly.d3.schemeCategory10 || ["#1f77b4","#ff7f0e","#2ca02c","#d62728","#9467bd","#8c564b","#e377c2","#7f7f7f","#bcbd22","#17becf"];
+      const palette = ["#1f77b4","#ff7f0e","#2ca02c","#d62728","#9467bd",
+                       "#8c564b","#e377c2","#7f7f7f","#bcbd22","#17becf"];
       const uniq = [...new Set(values)];
       const map = new Map();
       uniq.forEach((v, i) => map.set(v, palette[i % palette.length]));
@@ -54,14 +54,14 @@
     }
 
     d3.csv(DATA_URL, d3.autoType).then(raw => {
-      // Coerce types we rely on
+      // Normalize types
       const data = raw.map(r => ({
         Year: String(r.Year),
         Sex: String(r.Sex),
         Site: String(r.Site),
         Polk: String(r.Polk),
         Group: String(r.Group),
-        Cancer: +r.Cancer,  // numeric
+        Cancer: +r.Cancer,
         p: r.p === undefined || r.p === null || r.p === '' ? null : +r.p
       }));
 
@@ -82,25 +82,23 @@
         const sexVal  = sexSel.value;
         const siteVal = siteSel.value;
 
-        const df = data.filter(d => d.Sex === sexVal && d.Site === siteVal && Number.isFinite(d.Cancer));
+        const df = data
+          .filter(d => d.Sex === sexVal && d.Site === siteVal && Number.isFinite(d.Cancer));
 
         const years = sortYears(df.map(d => d.Year));
         const polkLevels = Array.from(new Set(df.map(d => d.Polk)));
         const groupLevels = Array.from(new Set(df.map(d => d.Group)));
         const colorMap = makeColorMap(groupLevels);
 
-        // Subplot grid domains (two columns)
+        // Grid layout for facets (two columns)
         const rows = Math.ceil(polkLevels.length / FACET_COLS);
         const colWidth = 1 / FACET_COLS;
-        const rowHeight = 1 / rows;
+        const rowHeight = 1 / Math.max(rows, 1);
 
-        // Map subplot index -> domain + axis ids
         const subplotInfo = polkLevels.map((_, idx) => {
           const r = Math.floor(idx / FACET_COLS);
           const c = idx % FACET_COLS;
-          // domain in [0,1]
           const x0 = c * colWidth, x1 = x0 + colWidth;
-          // flip vertically: top row has y domain near 1
           const y1 = 1 - r * rowHeight, y0 = y1 - rowHeight;
           return {x:[x0, x1], y:[y0, y1]};
         });
@@ -109,50 +107,49 @@
         const layout = {
           margin: {l: 70, r: 20, t: 40, b: 10},
           hovermode: 'closest',
-          legend: {x: 0.01, y: 0.99, xanchor: 'left', yanchor: 'top', bgcolor: 'rgba(255,255,255,0.7)', title: {text: ''}},
+          legend: {x: 0.01, y: 0.99, xanchor: 'left', yanchor: 'top',
+                   bgcolor: 'rgba(255,255,255,0.7)', title: {text: ''}},
           annotations: [],
-          // y-axis title on the leftmost axis only; others match it (shared)
-          yaxis: {title: {text: 'Cancer Rate'}, rangemode: 'tozero', showgrid: true, zeroline: false},
+          yaxis: {title: {text: 'Cancer Rate'}, rangemode: 'tozero', showgrid: true, zeroline: false}
         };
 
-        // For each facet (Polk), add a trace per Group
         polkLevels.forEach((polkVal, idx) => {
           const sub = df.filter(d => d.Polk === polkVal);
 
-          // Build axes ids
-          const axId = idx === 0 ? '' : String(idx+1); // first axis uses 'xaxis'/'yaxis', others 'xaxis2', 'yaxis2', ...
+          const axId = idx === 0 ? '' : String(idx+1);
           const xaxisName = 'xaxis' + axId;
           const yaxisName = 'yaxis' + axId;
 
-          // Link domains and axis props
           layout[xaxisName] = {
             domain: subplotInfo[idx].x,
             type: 'category',
             categoryorder: 'array',
             categoryarray: years,
-            title: {text: ''}, // no x-axis title
+            title: {text: ''},
             tickangle: 0
           };
-          layout[yaxisName] = idx === 0 ? layout.yaxis : {matches: 'y', rangemode: 'tozero', showgrid: true, zeroline: false, title: {text: ''}};
+          layout[yaxisName] = idx === 0 ? layout.yaxis
+            : {matches: 'y', rangemode: 'tozero', showgrid: true, zeroline: false, title: {text: ''}};
 
-          // Facet title as annotation
+          // Facet title
           layout.annotations.push({
             x: subplotInfo[idx].x[0] + 0.005,
             y: subplotInfo[idx].y[1] - 0.03,
             xref: 'paper', yref: 'paper',
             xanchor: 'left', yanchor: 'top',
-            text: polkVal,
-            showarrow: false,
-            font: {size: 12, color: '#333'}
+            text: polkVal, showarrow: false, font: {size: 12, color: '#333'}
           });
 
-          // One trace per Group for this facet
-          groupLevels.forEach((g, gi) => {
+          // One trace per Group in this facet
+          groupLevels.forEach((g) => {
             const gdat = sub
               .filter(d => d.Group === g)
               .sort((a,b) => (parseInt(a.Year,10)||0) - (parseInt(b.Year,10)||0));
 
-            const showLegend = idx === 0; // legend only for first facet
+            const showLegend = idx === 0;
+            // Pre-format p for hover (string; 'NA' if missing)
+            const customP = gdat.map(d => Number.isFinite(d.p) ? d.p.toFixed(3) : 'NA');
+
             const trace = {
               type: 'scatter',
               mode: 'lines+markers',
@@ -161,14 +158,11 @@
               showlegend: showLegend,
               x: gdat.map(d => d.Year),
               y: gdat.map(d => d.Cancer),
-const customP = gdat.map(d => Number.isFinite(d.p) ? d.p.toFixed(3) : 'NA');
-
-customdata: customP,
-hovertemplate:
-  'Year=%{x}<br>' +
-  'Cancer=%{y:.2f}<br>' +
-  'p=%{customdata}<extra></extra>',
-
+              customdata: customP,
+              hovertemplate:
+                'Year=%{x}<br>' +
+                'Cancer=%{y:.2f}<br>' +
+                'p=%{customdata}<extra></extra>',
               marker: {size: 6, color: colorMap.get(g)},
               line: {width: 2, color: colorMap.get(g)},
               xaxis: 'x' + axId,
@@ -178,14 +172,10 @@ hovertemplate:
           });
         });
 
-        // Height scales with facet rows
         const plotHeight = Math.max(500, rows * PLOT_HEIGHT_PER_ROW);
-        const config = {responsive: true, displaylogo: false};
-
-        Plotly.newPlot('chart', traces, {...layout, height: plotHeight}, config);
+        Plotly.newPlot('chart', traces, {...layout, height: plotHeight}, {responsive: true, displaylogo: false});
       }
 
-      // Initial draw + re-render on selection
       render();
       sexSel.addEventListener('change', render);
       siteSel.addEventListener('change', render);
