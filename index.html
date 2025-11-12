@@ -61,7 +61,7 @@
         Site: String(r.Site),
         Polk: String(r.Polk),
         Group: String(r.Group),
-        Cancer: +r.Cancer,
+        Cancer: parseFloat(String(r.Cancer).replace(/[^0-9.\-]/g,'')),
         p: r.p === undefined || r.p === null || r.p === '' ? null : +r.p
       }));
 
