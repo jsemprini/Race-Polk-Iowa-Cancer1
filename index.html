@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Cancer Trends</title>
+  <title>Cancer Trends in Polk County, by Race/Ethnicity</title>
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
   <script src="https://d3js.org/d3.v7.min.js"></script>
   <style>
@@ -11,12 +11,12 @@
     .controls { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
     label { font-weight: 600; margin-right: 6px; }
     select { padding: 6px 8px; border: 1px solid #ccc; border-radius: 8px; font-size: 14px; }
-    #chart { width: 100%; height: 680px; }
-    .footnote { margin-top: 8px; font-size: 12px; color: #555; }
+    #chart { width: 100%; height: 720px; }
+    .footnote { margin-top: 8px; font-size: 12px; color: #555; text-align: left; }
   </style>
 </head>
 <body>
-  <h2 style="margin-top:0">Cancer Trends</h2>
+  <h2 style="margin-top:0">Cancer Trends in Polk County, by Race/Ethnicity</h2>
 
   <div class="controls">
     <div>
@@ -30,20 +30,18 @@
   </div>
 
   <div id="chart"></div>
-  <div class="footnote">Rates are reported as cancers per 100,000 population.</div>
+  <div class="footnote">Rates are reported as cancers per 100,000 population. p < 0.05 indicates cancer rate is significantly different than NHW rate.</div>
 
   <script>
     const DATA_URL = 'data.csv';
-    const PLOT_HEIGHT_PER_ROW = 320;
+    const PLOT_HEIGHT_PER_ROW = 360;
     const FACET_COLS = 2;
 
-    // Sort year labels numerically (kept as strings)
     function sortYears(years) {
       return [...new Set(years)].map(String)
         .sort((a,b) => (parseInt(a,10)||0) - (parseInt(b,10)||0));
     }
 
-    // Stable color mapping for Group
     function makeColorMap(values) {
       const palette = ["#1f77b4","#ff7f0e","#2ca02c","#d62728","#9467bd",
                        "#8c564b","#e377c2","#7f7f7f","#bcbd22","#17becf"];
@@ -54,7 +52,6 @@
     }
 
     d3.csv(DATA_URL, d3.autoType).then(raw => {
-      // Normalize types
       const data = raw.map(r => ({
         Year: String(r.Year),
         Sex: String(r.Sex),
@@ -65,7 +62,6 @@
         p: r.p === undefined || r.p === null || r.p === '' ? null : +r.p
       }));
 
-      // Populate dropdowns
       const sexSel  = document.getElementById('sexSel');
       const siteSel = document.getElementById('siteSel');
 
@@ -90,7 +86,6 @@
         const groupLevels = Array.from(new Set(df.map(d => d.Group)));
         const colorMap = makeColorMap(groupLevels);
 
-        // Grid layout for facets (two columns)
         const rows = Math.ceil(polkLevels.length / FACET_COLS);
         const colWidth = 1 / FACET_COLS;
         const rowHeight = 1 / Math.max(rows, 1);
@@ -105,10 +100,17 @@
 
         const traces = [];
         const layout = {
-          margin: {l: 70, r: 20, t: 40, b: 10},
+          margin: {l: 70, r: 40, t: 60, b: 80},
           hovermode: 'closest',
-          legend: {x: 0.01, y: 0.99, xanchor: 'left', yanchor: 'top',
-                   bgcolor: 'rgba(255,255,255,0.7)', title: {text: ''}},
+          legend: {
+            orientation: 'h',
+            yanchor: 'bottom',
+            y: -0.25,
+            xanchor: 'center',
+            x: 0.5,
+            bgcolor: 'rgba(255,255,255,0.7)',
+            title: {text: ''}
+          },
           annotations: [],
           yaxis: {title: {text: 'Cancer Rate'}, rangemode: 'tozero', showgrid: true, zeroline: false}
         };
@@ -131,13 +133,17 @@
           layout[yaxisName] = idx === 0 ? layout.yaxis
             : {matches: 'y', rangemode: 'tozero', showgrid: true, zeroline: false, title: {text: ''}};
 
-          // Facet title
+          // Centered bold facet title
           layout.annotations.push({
-            x: subplotInfo[idx].x[0] + 0.005,
-            y: subplotInfo[idx].y[1] - 0.03,
+            x: (subplotInfo[idx].x[0] + subplotInfo[idx].x[1]) / 2,
+            y: subplotInfo[idx].y[1] - 0.02,
             xref: 'paper', yref: 'paper',
-            xanchor: 'left', yanchor: 'top',
-            text: polkVal, showarrow: false, font: {size: 12, color: '#333'}
+            xanchor: 'center',
+            yanchor: 'top',
+            text: `<b>${polkVal}</b>`,
+            showarrow: false,
+            align: 'center',
+            font: {size: 14, color: '#111', weight: 'bold'}
           });
 
           // One trace per Group in this facet
@@ -147,7 +153,6 @@
               .sort((a,b) => (parseInt(a.Year,10)||0) - (parseInt(b.Year,10)||0));
 
             const showLegend = idx === 0;
-            // Pre-format p for hover (string; 'NA' if missing)
             const customP = gdat.map(d => Number.isFinite(d.p) ? d.p.toFixed(3) : 'NA');
 
             const trace = {
@@ -172,7 +177,7 @@
           });
         });
 
-        const plotHeight = Math.max(500, rows * PLOT_HEIGHT_PER_ROW);
+        const plotHeight = Math.max(550, rows * PLOT_HEIGHT_PER_ROW);
         Plotly.newPlot('chart', traces, {...layout, height: plotHeight}, {responsive: true, displaylogo: false});
       }
 
