@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Cancer Trends</title>
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; margin: 24px; color: #111; }
+    .controls { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+    label { font-weight: 600; margin-right: 6px; }
+    select { padding: 6px 8px; border: 1px solid #ccc; border-radius: 8px; font-size: 14px; }
+    #chart { width: 100%; height: 720px; }
+    .footnote { margin-top: 8px; font-size: 12px; color: #555; text-align: left; }
+  </style>
+</head>
+<body>
+  <h2 style="margin-top:0">Cancer Trends</h2>
+
+  <div class="controls">
+    <div>
+      <label for="sexSel">Sex</label>
+      <select id="sexSel"></select>
+    </div>
+    <div>
+      <label for="siteSel">Site</label>
+      <select id="siteSel"></select>
+    </div>
+  </div>
+
+  <div id="chart"></div>
+  <div class="footnote">Rates are reported as cancers per 100,000 population.</div>
+
+  <script>
+    const DATA_URL = 'data.csv';
+    const PLOT_HEIGHT_PER_ROW = 360;
+    const FACET_COLS = 2;
+
+    function sortYears(years) {
+      return [...new Set(years)].map(String)
+        .sort((a,b) => (parseInt(a,10)||0) - (parseInt(b,10)||0));
+    }
+
+    function makeColorMap(values) {
+      const palette = ["#1f77b4","#ff7f0e","#2ca02c","#d62728","#9467bd",
+                       "#8c564b","#e377c2","#7f7f7f","#bcbd22","#17becf"];
+      const uniq = [...new Set(values)];
+      const map = new Map();
+      uniq.forEach((v, i) => map.set(v, palette[i % palette.length]));
+      return map;
+    }
+
+    d3.csv(DATA_URL, d3.autoType).then(raw => {
+      const data = raw.map(r => ({
+        Year: String(r.Year),
+        Sex: String(r.Sex),
+        Site: String(r.Site),
+        Polk: String(r.Polk),
+        Group: String(r.Group),
+        Cancer: +r.Cancer,
+        p: r.p === undefined || r.p === null || r.p === '' ? null : +r.p
+      }));
+
+      const sexSel  = document.getElementById('sexSel');
+      const siteSel = document.getElementById('siteSel');
+
+      const sexOptions  = Array.from(new Set(data.map(d => d.Sex))).sort();
+      const siteOptions = Array.from(new Set(data.map(d => d.Site))).sort();
+
+      sexOptions.forEach(v => { const o=document.createElement('option'); o.value=o.textContent=v; sexSel.appendChild(o); });
+      siteOptions.forEach(v => { const o=document.createElement('option'); o.value=o.textContent=v; siteSel.appendChild(o); });
+
+      sexSel.value  = sexOptions[0] || '';
+      siteSel.value = siteOptions[0] || '';
+
+      function render() {
+        const sexVal  = sexSel.value;
+        const siteVal = siteSel.value;
+
+        const df = data
+          .filter(d => d.Sex === sexVal && d.Site === siteVal && Number.isFinite(d.Cancer));
+
+        const years = sortYears(df.map(d => d.Year));
+        const polkLevels = Array.from(new Set(df.map(d => d.Polk)));
+        const groupLevels = Array.from(new Set(df.map(d => d.Group)));
+        const colorMap = makeColorMap(groupLevels);
+
+        const rows = Math.ceil(polkLevels.length / FACET_COLS);
+        const colWidth = 1 / FACET_COLS;
+        const rowHeight = 1 / Math.max(rows, 1);
+
+        const subplotInfo = polkLevels.map((_, idx) => {
+          const r = Math.floor(idx / FACET_COLS);
+          const c = idx % FACET_COLS;
+          const x0 = c * colWidth, x1 = x0 + colWidth;
+          const y1 = 1 - r * rowHeight, y0 = y1 - rowHeight;
+          return {x:[x0, x1], y:[y0, y1]};
+        });
+
+        const traces = [];
+        const layout = {
+          margin: {l: 70, r: 40, t: 60, b: 80},
+          hovermode: 'closest',
+          legend: {
+            orientation: 'h',
+            yanchor: 'bottom',
+            y: -0.25,
+            xanchor: 'center',
+            x: 0.5,
+            bgcolor: 'rgba(255,255,255,0.7)',
+            title: {text: ''}
+          },
+          annotations: [],
+          yaxis: {title: {text: 'Cancer Rate'}, rangemode: 'tozero', showgrid: true, zeroline: false}
+        };
+
+        polkLevels.forEach((polkVal, idx) => {
+          const sub = df.filter(d => d.Polk === polkVal);
+
+          const axId = idx === 0 ? '' : String(idx+1);
+          const xaxisName = 'xaxis' + axId;
+          const yaxisName = 'yaxis' + axId;
+
+          layout[xaxisName] = {
+            domain: subplotInfo[idx].x,
+            type: 'category',
+            categoryorder: 'array',
+            categoryarray: years,
+            title: {text: ''},
+            tickangle: 0
+          };
+          layout[yaxisName] = idx === 0 ? layout.yaxis
+            : {matches: 'y', rangemode: 'tozero', showgrid: true, zeroline: false, title: {text: ''}};
+
+          // Centered bold facet title
+          layout.annotations.push({
+            x: (subplotInfo[idx].x[0] + subplotInfo[idx].x[1]) / 2,
+            y: subplotInfo[idx].y[1] - 0.02,
+            xref: 'paper', yref: 'paper',
+            xanchor: 'center',
+            yanchor: 'top',
+            text: `<b>${polkVal}</b>`,
+            showarrow: false,
+            align: 'center',
+            font: {size: 14, color: '#111', weight: 'bold'}
+          });
+
+          // One trace per Group in this facet
+          groupLevels.forEach((g) => {
+            const gdat = sub
+              .filter(d => d.Group === g)
+              .sort((a,b) => (parseInt(a.Year,10)||0) - (parseInt(b.Year,10)||0));
+
+            const showLegend = idx === 0;
+            const customP = gdat.map(d => Number.isFinite(d.p) ? d.p.toFixed(3) : 'NA');
+
+            const trace = {
+              type: 'scatter',
+              mode: 'lines+markers',
+              name: g,
+              legendgroup: g,
+              showlegend: showLegend,
+              x: gdat.map(d => d.Year),
+              y: gdat.map(d => d.Cancer),
+              customdata: customP,
+              hovertemplate:
+                'Year=%{x}<br>' +
+                'Cancer=%{y:.2f}<br>' +
+                'p=%{customdata}<extra></extra>',
+              marker: {size: 6, color: colorMap.get(g)},
+              line: {width: 2, color: colorMap.get(g)},
+              xaxis: 'x' + axId,
+              yaxis: 'y' + axId
+            };
+            traces.push(trace);
+          });
+        });
+
+        const plotHeight = Math.max(550, rows * PLOT_HEIGHT_PER_ROW);
+        Plotly.newPlot('chart', traces, {...layout, height: plotHeight}, {responsive: true, displaylogo: false});
+      }
+
+      render();
+      sexSel.addEventListener('change', render);
+      siteSel.addEventListener('change', render);
+    });
+  </script>
+</body>
+</html>
