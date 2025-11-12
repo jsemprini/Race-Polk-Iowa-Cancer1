@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Cancer Trends</title>
+  <title>Cancer Trends in Polk County, by Race/Ethnicity</title>
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
   <script src="https://d3js.org/d3.v7.min.js"></script>
   <style>
@@ -16,7 +16,7 @@
   </style>
 </head>
 <body>
-  <h2 style="margin-top:0">Cancer Trends</h2>
+  <h2 style="margin-top:0">Cancer Trends in Polk County, by Race/Ethnicity</h2>
 
   <div class="controls">
     <div>
@@ -30,7 +30,7 @@
   </div>
 
   <div id="chart"></div>
-  <div class="footnote">Rates are reported as cancers per 100,000 population.</div>
+  <div class="footnote">Rates are reported as cancers per 100,000 population. p < 0.05 indicates cancer rate is significantly different than NHW rate.</div>
 
   <script>
     const DATA_URL = 'data.csv';
