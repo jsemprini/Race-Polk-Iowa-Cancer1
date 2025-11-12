@@ -161,11 +161,14 @@
               showlegend: showLegend,
               x: gdat.map(d => d.Year),
               y: gdat.map(d => d.Cancer),
-              customdata: gdat.map(d => d.p),
-              hovertemplate:
-                'Year=%{x}<br>' +
-                'Cancer=%{y:.2f}<br>' +
-                'p=%{customdata:.3f}<extra></extra>',
+const customP = gdat.map(d => Number.isFinite(d.p) ? d.p.toFixed(3) : 'NA');
+
+customdata: customP,
+hovertemplate:
+  'Year=%{x}<br>' +
+  'Cancer=%{y:.2f}<br>' +
+  'p=%{customdata}<extra></extra>',
+
               marker: {size: 6, color: colorMap.get(g)},
               line: {width: 2, color: colorMap.get(g)},
               xaxis: 'x' + axId,
